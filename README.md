@@ -59,7 +59,7 @@ GetBox is a powerful, full-stack media downloader built with Next.js. It allows 
 
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/yourusername/getbox.git
+    git clone https://github.com/mido-io/GetBox.git
     cd getbox
     ```
 
@@ -84,25 +84,6 @@ npm run build
 npm start
 ```
 
-## Deployment
-
-### Railway (Recommended)
-
-1.  **Create Project**: New Project -> Deploy from GitHub repo.
-2.  **Environment Variables**:
-    -   Set `NIXPACKS_PKGS` to `ffmpeg python3` (if using Nixpacks).
-    -   Or use the provided `Dockerfile`.
-3.  **Settings**:
-    -   Ensure the build command is `npm run build`.
-    -   Ensure the start command is `npm start`.
-
-### Vercel
-
-*Note: Vercel Serverless Functions have size limits that may break FFmpeg/yt-dlp. Railway or a VPS is recommended for full functionality.*
-
-1.  Import project to Vercel.
-2.  Add `ffmpeg-static` to dependencies (already included).
-3.  Deploy.
 
 ## Troubleshooting
 
