@@ -1,36 +1,121 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GetBox - Universal Media Downloader
 
-## Getting Started
+GetBox is a powerful, full-stack media downloader built with Next.js. It allows users to extract and download video, audio, and images from popular social media platforms with a clean, modern interface.
 
-First, run the development server:
+## Architecture
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+[Client (Next.js)]  <-- JSON -->  [API Routes (/api/download)]
+                                        |
+                                  [Extractors]
+                                  (yt-dlp, custom logic)
+                                        |
+                                  [Normalization]
+                                        |
+      -------------------------------------------------------
+      |                         |                           |
+[/api/file]               [/api/mux]                 [/api/transcode]
+(Direct Stream)        (Merge Video+Audio)          (Convert to MP3)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Features
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+-   **Universal Support**: Works with major platforms.
+-   **Smart Processing**: Automatically merges separate video/audio streams (ffmpeg).
+-   **Audio Conversion**: Converts HLS/m3u8 streams to MP3 on the fly.
+-   **Metadata Preservation**: Retains original filenames, thumbnails, and author info.
+-   **Privacy Focused**: Proxies all downloads to hide client IP from source.
+-   **Rate Limiting**: Built-in protection against abuse.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Supported Platforms
 
-## Learn More
+-   YouTube
+-   TikTok (Watermark-free)
+-   Instagram (Reels, Stories, Posts)
+-   Facebook
+-   Twitter / X
+-   SoundCloud
+-   Reddit
+-   Pinterest
+-   Imgur
 
-To learn more about Next.js, take a look at the following resources:
+## How It Works
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1.  **Resolve**: The user pastes a URL. The backend identifies the platform and uses a specific extractor (or `yt-dlp` fallback) to find media URLs.
+2.  **Prepare**: The client selects a format. The backend caches the target URL and headers (User-Agent, Cookies) to ensure access.
+3.  **Download**:
+    -   **Direct**: Streams raw files (e.g., images, simple MP4s).
+    -   **Mux**: Uses FFmpeg to merge high-quality video (1080p+) with separate audio tracks.
+    -   **Transcode**: Uses FFmpeg to convert streams (like SoundCloud m3u8) to standard MP3.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Installation & Development
 
-## Deploy on Vercel
+### Prerequisites
+-   Node.js 18+
+-   FFmpeg (installed and in system PATH)
+-   Python 3 (for `yt-dlp`)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Setup
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/yourusername/getbox.git
+    cd getbox
+    ```
+
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+
+3.  Run the development server:
+    ```bash
+    npm run dev
+    ```
+
+4.  Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Build
+
+To create a production build:
+
+```bash
+npm run build
+npm start
+```
+
+## Deployment
+
+### Railway (Recommended)
+
+1.  **Create Project**: New Project -> Deploy from GitHub repo.
+2.  **Environment Variables**:
+    -   Set `NIXPACKS_PKGS` to `ffmpeg python3` (if using Nixpacks).
+    -   Or use the provided `Dockerfile`.
+3.  **Settings**:
+    -   Ensure the build command is `npm run build`.
+    -   Ensure the start command is `npm start`.
+
+### Vercel
+
+*Note: Vercel Serverless Functions have size limits that may break FFmpeg/yt-dlp. Railway or a VPS is recommended for full functionality.*
+
+1.  Import project to Vercel.
+2.  Add `ffmpeg-static` to dependencies (already included).
+3.  Deploy.
+
+## Troubleshooting
+
+-   **403 Forbidden**: Usually due to missing User-Agent/Cookies. The system handles this, but some platforms rotate keys.
+-   **Empty Audio**: Ensure FFmpeg is installed correctly.
+-   **Rate Limit**: The API limits requests by IP. Check `lib/server/rateLimit.js` to adjust.
+
+## Contributing
+
+Pull requests are welcome. Please ensure you do not break existing extractors.
+
+1.  Fork the repo.
+2.  Create a feature branch.
+3.  Commit your changes.
+4.  Push to the branch.
+5.  Create a Pull Request.
