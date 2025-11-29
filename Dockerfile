@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     git \
     python3 \
     build-essential \
+ && ln -sf /usr/bin/python3 /usr/bin/python \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
