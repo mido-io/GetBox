@@ -1,0 +1,16 @@
+{
+  "name": "GetBox - Free Media Downloader",
+  "short_name": "GetBox",
+  "description": "Download videos, audio, and images from YouTube, Instagram, TikTok, Twitter/X, Reddit & more. Free, fast, no sign-up.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

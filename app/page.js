@@ -1,252 +1,547 @@
 "use client";
 
-import { useState } from "react";
-import { LuBox, LuVideo, LuMusic, LuImage } from "react-icons/lu";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
+import {
+  LuArrowDownToLine,
+  LuBox,
+  LuCircleAlert,
+  LuClipboard,
+  LuExternalLink,
+  LuImage,
+  LuLink,
+  LuMusic,
+  LuCopy,
+  LuVideo,
+  LuX,
+  LuYoutube,
+  LuTwitter,
+  LuInstagram,
+  LuFacebook,
+  LuMessageCircle,
+} from "./icons";
 import styles from "./page.module.css";
 
-const icons = {
-  box: <LuBox size={28} />,
-  video: <LuVideo size={18} />,
-  audio: <LuMusic size={18} />,
-  image: <LuImage size={18} />,
+const TYPE_ICON = {
+  video: LuVideo,
+  audio: LuMusic,
+  image: LuImage,
 };
 
-// Animated Box Component
-function AnimatedBox({ size = 26, spinning = false }) {
-  return (
-    <div
-      style={{
-        display: "inline-flex",
-        animation: spinning ? "spin 1s linear infinite" : "none",
-      }}
-    >
-      <LuBox size={size} />
-    </div>
+const PLATFORM_ICON = {
+  "Direct file": LuBox,
+  "Instagram": LuInstagram,
+  "Instagram Reel": LuInstagram,
+  "X": LuTwitter,
+  "Twitter": LuTwitter,
+  "Reddit": LuMessageCircle,
+  "TikTok": LuBox,
+  "YouTube": LuYoutube,
+  "Facebook": LuFacebook,
+  "SoundCloud": LuMusic,
+  "SoundCloud playlist": LuMusic,
+  "Pinterest": LuBox,
+};
+
+const SUPPORTED_PLATFORMS = [
+  { name: "YouTube", icon: "🎬", formats: "Video, Audio" },
+  { name: "Instagram", icon: "📸", formats: "Photos, Reels, Videos" },
+  { name: "TikTok", icon: "🎵", formats: "Video, Audio, Images" },
+  { name: "X / Twitter", icon: "🐦", formats: "Video, Images" },
+  { name: "Reddit", icon: "🔗", formats: "Video, Images, Galleries" },
+  { name: "SoundCloud", icon: "🎧", formats: "Audio, Playlists" },
+  { name: "Facebook", icon: "📘", formats: "Video, Images" },
+  { name: "Pinterest", icon: "📌", formats: "Images, Videos" },
+  { name: "Direct Links", icon: "📁", formats: "MP4, MP3, JPG, PNG, etc." },
+];
+
+
+function isIosSafari() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /iP(ad|hone|od)/.test(ua) && /Safari/.test(ua) && !/CriOS|FxiOS/.test(ua);
+}
+
+function groupByType(items) {
+  return items.reduce(
+    (groups, item) => {
+      const type = ["video", "audio", "image"].includes(item.type) ? item.type : "video";
+      groups[type].push(item);
+      return groups;
+    },
+    { video: [], audio: [], image: [] }
   );
+}
+
+function filenameFromUrl(value) {
+  try {
+    const url = new URL(value);
+    return decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || "download");
+  } catch {
+    return "download";
+  }
 }
 
 export default function Home() {
   const [url, setUrl] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState(null);
-  const [selectedMedia, setSelectedMedia] = useState("video");
-  const [downloadingId, setDownloadingId] = useState(null);
+  const [status, setStatus] = useState("idle");
+  const [message, setMessage] = useState("");
+  const [result, setResult] = useState(null);
+  const [activeType, setActiveType] = useState("video");
+  const [copied, setCopied] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [history, setHistory] = useState([]);
+  const iosSafari = useMemo(isIosSafari, []);
+  const toastTimeoutRef = useRef(null);
 
-  async function handleResolve() {
-    if (!url) return;
-    setLoading(true);
-    setData(null);
+  // Load search history on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("getbox-history");
+      if (saved) {
+        try {
+          setHistory(JSON.parse(saved));
+        } catch {
+          // Invalid history, ignore
+        }
+      }
+    }
+  }, []);
+
+  const resolveUrl = useCallback(async function resolveUrl(event) {
+    event?.preventDefault();
+    const trimmed = url.trim();
+    if (!trimmed || status === "loading") return;
+
+    setStatus("loading");
+    setMessage("");
+    setResult(null);
 
     try {
-      const res = await fetch("/api/download", {
+      const response = await fetch("/api/resolve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: trimmed }),
       });
 
-      const json = await res.json();
-      if (json.error) {
-        alert("Error: " + json.error);
-        return;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Could not resolve that URL.");
       }
 
-      const videos = (json.urls || []).filter((u) => u.type === "video");
-      const audios = (json.urls || []).filter((u) => u.type === "audio");
-      const images = (json.urls || []).filter((u) => u.type === "image");
+      const items = Array.isArray(data.items) ? data.items : [];
+      const groups = groupByType(items);
+      const firstType = ["video", "audio", "image"].find((type) => groups[type].length) || "video";
 
-      const processed = {
-        meta: json.meta || {},
-        mediaTypes: { video: videos, audio: audios, image: images },
-      };
+      setResult({ ...data, groups });
+      setActiveType(firstType);
+      setStatus("ready");
 
-      setData(processed);
+      // Save to history
+      if (typeof window !== "undefined") {
+        const newHistory = [trimmed, ...history.filter((h) => h !== trimmed)].slice(0, 10);
+        setHistory(newHistory);
+        localStorage.setItem("getbox-history", JSON.stringify(newHistory));
+      }
+    } catch (error) {
+      setStatus("error");
+      setMessage(error?.message || "Something went wrong.");
+    }
+  }, [url, status, history]);
 
-      if (videos.length) setSelectedMedia("video");
-      else if (audios.length) setSelectedMedia("audio");
-      else if (images.length) setSelectedMedia("image");
-    } catch (e) {
-      console.error(e);
-      alert("Failed to resolve URL");
-    } finally {
-      setLoading(false);
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    function handleKeyPress(e) {
+      // ESC key to close recent URLs dropdown or guide
+      if (e.key === "Escape") {
+        if (showGuide) {
+          setShowGuide(false);
+        } else if (history.length > 0 && !result && status === "idle") {
+          // Clear history when ESC is pressed on history view
+          setHistory([]);
+          localStorage.removeItem("getbox-history");
+        }
+      }
+      // Ctrl+V or Cmd+V to paste
+      if ((e.ctrlKey || e.metaKey) && e.key === "v" && e.target.id !== "media-url") {
+        e.preventDefault();
+        pasteFromClipboard();
+      }
+      // Ctrl+Enter or Cmd+Enter to submit
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && url.trim()) {
+        resolveUrl();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [url, showGuide, history.length, result, status, resolveUrl]);
+
+  async function pasteFromClipboard() {
+    if (!navigator.clipboard?.readText) return;
+    const text = await navigator.clipboard.readText();
+    setUrl(text.trim());
+  }
+
+  function downloadItem(item) {
+    const link = document.createElement("a");
+    link.href = item.url;
+    link.download = item.filename || filenameFromUrl(item.url);
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  async function copyLink(value) {
+    if (!value) return;
+    try {
+      await navigator.clipboard?.writeText(value);
+      setCopied(true);
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select and copy
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+      setCopied(true);
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
     }
   }
 
-  const handleDownload = async (item, key) => {
-    try {
-      setDownloadingId(key);
+  function openItem(value) {
+    if (!value) return;
+    window.open(value, "_blank", "noopener,noreferrer");
+  }
 
-      const prepareBody = {
-        url: item.url,
-        filename: item.filename || "download",
-        userAgent: item.userAgent,
-        referer: item.referer,
-        cookie: item.cookie,
-        headers: item.headers,
-        quality: item.quality,
-        type: item.type,
-      };
+  function openHelper(helperUrl) {
+    window.open(helperUrl, "_blank", "noopener,noreferrer");
+  }
 
-      if (item.type === "video") {
-        prepareBody.videoUrl = item.url;
+  function loadFromHistory(historyUrl) {
+    setUrl(historyUrl);
+  }
 
-        if (item.is_muted) {
-          let audioSource =
-            item.audio_source_url ||
-            (data?.mediaTypes?.audio?.length
-              ? data.mediaTypes.audio[0].url
-              : null);
-
-          if (!audioSource) audioSource = item.url;
-
-          prepareBody.audioUrl = audioSource;
-        }
-      }
-
-      const res = await fetch("/api/prepare", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(prepareBody),
-      });
-
-      if (!res.ok) throw new Error("Failed to prepare download");
-
-      const { id } = await res.json();
-
-      let href = `/api/file?id=${id}`;
-
-      if (item.type === "video" && item.is_muted && prepareBody.audioUrl) {
-        href = `/api/mux?id=${id}`;
-      } else if (item.type === "audio") {
-        href = item.is_transcode
-          ? `/api/transcode?id=${id}`
-          : `/api/file?id=${id}`;
-      }
-
-      const a = document.createElement("a");
-      a.target = "_blank";
-      a.href = href;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch (err) {
-      console.error("Download failed:", err);
-      alert("Download failed to start");
-    } finally {
-      setDownloadingId(null);
-    }
-  };
+  const activeItems = result?.groups?.[activeType] || [];
+  const isLoading = status === "loading";
+  const hasHelpers = result?.fallback?.helpers && result.fallback.helpers.length > 0;
 
   return (
-    <main className={styles.main}>
-      <style>
-        {`
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-        `}
-      </style>
+    <main className={styles.shell}>
+      {copied && <div className={styles.toast} role="status" aria-live="polite">✓ Copied to clipboard</div>}
 
-      <div className={styles.container}>
-        {/* Branding */}
-        <div className={styles.branding}>
-          <div className={styles.logoWrapper}>{icons.box}</div>
-          <div>
-            <div className={styles.title}>GetBox</div>
-            <div className={styles.small}>Fast & Light Media Downloader</div>
+      <section className={styles.workspace} aria-labelledby="app-title">
+        <header className={styles.header}>
+          <div className={styles.brandMark} aria-hidden="true">
+            <LuBox />
           </div>
-        </div>
-
-        {/* Input */}
-        <div className={styles.inputRow}>
-          <input
-            className={styles.input}
-            placeholder="Paste URL here..."
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleResolve()}
-          />
-          <button className={styles.button} onClick={handleResolve} disabled={loading}>
-            {loading ? <AnimatedBox spinning size={26} /> : <AnimatedBox size={26} />}
-          </button>
-        </div>
-
-        {data && (
-          <div className={styles.results}>
-            {/* Meta */}
-            <div
-              style={{
-                display: "flex",
-                gap: 16,
-                marginTop: 12,
-                alignItems: "center",
-              }}
-            >
-              {data.meta.thumbnail && (
-                <img src={data.meta.thumbnail} alt="thumb" className={styles.thumbnail} />
-              )}
-              <div>
-                <h2 className={styles.metaTitle}>{data.meta.title || "Untitled"}</h2>
-                <p className={styles.small}>{data.meta.author || ""}</p>
-              </div>
+          <div>
+            <h1 id="app-title">GetBox</h1>
+            <p>Free media downloader — download videos, audio &amp; images from any platform instantly.</p>
+            <div className={styles.headerLinks}>
+              <button
+                className={styles.guideToggle}
+                type="button"
+                onClick={() => setShowGuide(!showGuide)}
+                title="Show supported platforms"
+                aria-expanded={showGuide}
+              >
+                {showGuide ? "Hide" : "Supported platforms"}
+              </button>
+              <span className={styles.guideToggleText}> | </span>
+              <a
+                href="https://github.com/mido-io/GetBox"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.guideToggleLink}
+              >
+                GitHub
+              </a>
             </div>
+          </div>
+        </header>
 
-            {/* Tabs */}
-            <div className={styles.tabs}>
-              <button
-                className={`${styles.tab} ${
-                  selectedMedia === "video" ? styles.active : ""
-                }`}
-                onClick={() => setSelectedMedia("video")}
-              >
-                {icons.video} Video
-              </button>
-              <button
-                className={`${styles.tab} ${
-                  selectedMedia === "audio" ? styles.active : ""
-                }`}
-                onClick={() => setSelectedMedia("audio")}
-              >
-                {icons.audio} Audio
-              </button>
-              <button
-                className={`${styles.tab} ${
-                  selectedMedia === "image" ? styles.active : ""
-                }`}
-                onClick={() => setSelectedMedia("image")}
-              >
-                {icons.image} Image
-              </button>
-            </div>
-
-            {/* Quality List */}
-            <div className={styles.qualityList}>
-              {(data.mediaTypes[selectedMedia] || []).length === 0 && (
-                <div className={styles.emptyState}>No {selectedMedia} found.</div>
-              )}
-
-              {(data.mediaTypes[selectedMedia] || []).map((item, i) => (
-                <div className={styles.qualityItem} key={i}>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>
-                      {item.quality || "Standard"}
-                    </div>
-                    <div className={styles.small}>{item.filename}</div>
+        {showGuide && (
+          <div className={styles.guide} role="region" aria-label="Supported platforms list">
+            <h3>Supported Platforms</h3>
+            <div className={styles.platformGrid}>
+              {SUPPORTED_PLATFORMS.map((platform) => (
+                <div key={platform.name} className={styles.platformCard}>
+                  <span className={styles.platformEmoji} aria-hidden="true">{platform.icon}</span>
+                  <div className={styles.platformInfo}>
+                    <h4>{platform.name}</h4>
+                    <p>{platform.formats}</p>
                   </div>
-
-                  <button
-                    className={styles.button}
-                    onClick={() => handleDownload(item, i)}
-                  >
-                    <AnimatedBox spinning={downloadingId === i} size={22} />
-                  </button>
                 </div>
               ))}
             </div>
           </div>
         )}
-      </div>
+
+        <form className={styles.search} onSubmit={resolveUrl} role="search" aria-label="Media URL search">
+          <label className={styles.inputLabel} htmlFor="media-url">
+            Media URL
+          </label>
+          <div className={styles.inputRow}>
+            <LuLink className={styles.inputIcon} aria-hidden="true" />
+            <input
+              id="media-url"
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="Paste a media URL or paste with Ctrl+V"
+              inputMode="url"
+              autoComplete="url"
+              spellCheck="false"
+              type="url"
+            />
+            <button
+              className={styles.iconButton}
+              type="button"
+              onClick={pasteFromClipboard}
+              aria-label="Paste from clipboard"
+              title="Paste (Ctrl+V)"
+            >
+              <LuClipboard />
+            </button>
+          </div>
+          <button
+            className={styles.primaryButton}
+            type="submit"
+            disabled={isLoading}
+            aria-label={isLoading ? "Getting media" : "Get media"}
+            title={isLoading ? "Getting media" : "Get media (Ctrl+Enter)"}
+          >
+            <LuBox className={isLoading ? styles.spin : ""} />
+          </button>
+        </form>
+
+        {history.length > 0 && !result && status === "idle" && (
+          <nav className={styles.history} aria-label="Recent search history">
+            <h3>Recent URLs</h3>
+            <div className={styles.historyList}>
+              {history.map((item, index) => (
+                <div key={index} className={styles.historyItemContainer}>
+                  <button
+                    type="button"
+                    className={styles.historyItem}
+                    onClick={() => loadFromHistory(item)}
+                    title={item}
+                  >
+                    <span>{item.substring(0, 50)}...</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.historyDelete}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const newHistory = history.filter((_, i) => i !== index);
+                      setHistory(newHistory);
+                      localStorage.setItem("getbox-history", JSON.stringify(newHistory));
+                    }}
+                    aria-label="Delete from history"
+                    title="Delete"
+                  >
+                    <LuX />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </nav>
+        )}
+
+        {iosSafari && (
+          <div className={styles.notice} role="note">
+            <LuCircleAlert aria-hidden="true" />
+            <p>
+              On iPhone Safari, some cross-site media opens instead of saving immediately. Use
+              Open, then Share, then Save Video, Save Image, or Save to Files.
+            </p>
+          </div>
+        )}
+
+        {status === "error" && (
+          <div className={styles.error} role="alert">
+            <LuCircleAlert aria-hidden="true" />
+            <div>
+              <h3>Could not download this media</h3>
+              <p>{message}</p>
+              <p className={styles.errorHint}>Try a different URL or use a supported platform from the guide above.</p>
+            </div>
+          </div>
+        )}
+
+        {result && (
+          <section className={styles.results} aria-label="Download options">
+            <div className={styles.resultHeader}>
+              <div className={styles.thumbnailFallback}>
+                {PLATFORM_ICON[result.meta?.platform] ? (
+                  <>
+                    {(() => {
+                      const Icon = PLATFORM_ICON[result.meta.platform];
+                      return <Icon />;
+                    })()}
+                  </>
+                ) : (
+                  <LuBox />
+                )}
+              </div>
+              <div>
+                <p className={styles.platform}>{result.meta?.platform || "Media"}</p>
+                <h2>{result.meta?.title || "Download ready"}</h2>
+                {result.meta?.author && <p className={styles.author}>{result.meta.author}</p>}
+              </div>
+            </div>
+
+            {result.fallback && (
+              <div className={hasHelpers ? styles.fallbackHelper : styles.fallback}>
+                <LuCircleAlert aria-hidden="true" />
+                <div>
+                  <h3>{result.fallback.reason || "No direct media file was exposed."}</h3>
+
+                  {hasHelpers && (
+                    <div className={styles.helperServices}>
+                      <p className={styles.helperText}>Choose a trusted helper service:</p>
+                      <div className={styles.helperButtons}>
+                        {result.fallback.helpers.map((helper, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            className={styles.helperButton}
+                            onClick={() => openHelper(helper.url)}
+                            title={`Use ${helper.name} to download`}
+                          >
+                            <LuExternalLink />
+                            <span>{helper.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {!hasHelpers && (
+                    <div className={styles.fallbackActions}>
+                      <button type="button" onClick={() => openItem(result.fallback.url)}>
+                        <LuExternalLink />
+                        <span>{result.fallback.label || "Open original"}</span>
+                      </button>
+                      <button type="button" onClick={() => copyLink(result.fallback.url)}>
+                        <LuCopy />
+                        <span>Copy link</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {result.items?.length > 0 && (
+              <div className={styles.tabs} role="tablist" aria-label="Media type">
+                {["video", "audio", "image"].map((type) => {
+                  const Icon = TYPE_ICON[type];
+                  const count = result.groups[type].length;
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeType === type}
+                      className={activeType === type ? styles.activeTab : ""}
+                      onClick={() => setActiveType(type)}
+                      disabled={!count}
+                    >
+                      <Icon />
+                      <span>{type}</span>
+                      <strong>{count}</strong>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {activeItems.length > 0 && (
+              <div className={styles.list}>
+                {activeItems.map((item, index) => {
+                  const Icon = TYPE_ICON[item.type] || LuVideo;
+                  return (
+                    <article className={styles.mediaItem} key={`${item.url}-${index}`}>
+                      <div className={styles.mediaIcon} aria-hidden="true">
+                        <Icon />
+                      </div>
+                      <div className={styles.mediaCopy}>
+                        <h3>{item.filename || filenameFromUrl(item.url)}</h3>
+                        <p>
+                          {item.quality || "Original media"}
+                          {item.experimental ? " - experimental" : ""}
+                        </p>
+                      </div>
+                      <div className={styles.itemActions}>
+                        <button
+                          className={styles.downloadButton}
+                          type="button"
+                          onClick={() => downloadItem(item)}
+                          aria-label={`Download ${item.filename || "media"}`}
+                          title="Download"
+                        >
+                          <LuArrowDownToLine />
+                        </button>
+                        <button
+                          className={styles.downloadButton}
+                          type="button"
+                          onClick={() => openItem(item.url)}
+                          aria-label={`Open ${item.filename || "media"}`}
+                          title="Open in new tab"
+                        >
+                          <LuExternalLink />
+                        </button>
+                        <button
+                          className={styles.downloadButton}
+                          type="button"
+                          onClick={() => copyLink(item.url)}
+                          aria-label={`Copy ${item.filename || "media"} link`}
+                          title="Copy link"
+                        >
+                          <LuCopy />
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+
+            {result.helpers && result.helpers.length > 0 && (
+              <div className={styles.fallbackHelper} style={{ marginTop: '1.5rem' }}>
+                <LuCircleAlert aria-hidden="true" />
+                <div>
+                  <h3>Alternative Download Options</h3>
+                  <div className={styles.helperServices} style={{ marginTop: '0.5rem' }}>
+                    <p className={styles.helperText}>If the links above don't work, try these trusted helper services:</p>
+                    <div className={styles.helperButtons}>
+                      {result.helpers.map((helper, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          className={styles.helperButton}
+                          onClick={() => openHelper(helper.url)}
+                          title={`Use ${helper.name} to download`}
+                        >
+                          <LuExternalLink />
+                          <span>{helper.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+      </section>
     </main>
   );
 }

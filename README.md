@@ -1,95 +1,131 @@
-# GetBox - Universal Media Downloader
+<div align="center">
 
-GetBox is a powerful, full-stack media downloader built with Next.js. It allows users to extract and download video, audio, and images from popular social media platforms with a clean, modern interface.
+# 📦 GetBox
 
-## Architecture
+### Free, Fast, Open-Source Media Downloader
 
+Download videos, audio, and images from **YouTube**, **Instagram**, **TikTok**, **X/Twitter**, **Reddit**, **SoundCloud**, **Facebook**, **Pinterest** — and any direct media URL.
+
+**No sign-up • No ads • No tracking • Edge-fast on Vercel**
+
+
+---
+
+## ✨ Features
+
+| Feature | Description |
+|---|---|
+| 🌐 **Multi-Platform** | YouTube, Instagram, TikTok, X/Twitter, Reddit, Facebook, SoundCloud, Pinterest |
+| ⚡ **Edge Runtime** | API runs on Vercel Edge — sub-50ms cold starts worldwide |
+| 📱 **Mobile-First UI** | Responsive, dark-mode glassmorphism design with iOS Safari support |
+| 🔗 **Direct Links** | Paste any `.mp4`, `.mp3`, `.jpg`, `.png`, `.webp`, `.gif` URL for instant download |
+| 🎵 **Playlist Support** | SoundCloud playlists (up to 50 tracks) |
+| 📋 **URL History** | Recent URLs saved locally in your browser |
+| ⌨️ **Keyboard Shortcuts** | `Ctrl+V` paste anywhere, `Ctrl+Enter` submit, `Esc` dismiss |
+| 🛡️ **Zero Dependencies on External APIs** | All extractors are native — no paid third-party services |
+| 🔒 **Security Headers** | `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` |
+| 🔍 **SEO Optimized** | JSON-LD structured data, Open Graph, Twitter Cards, sitemap, robots.txt |
+
+
+### How It Works
+
+```mermaid
+graph LR
+    A[User pastes URL] --> B[POST /api/resolve]
+    B --> C{Direct media URL?}
+    C -->|Yes| D[Return direct link]
+    C -->|No| E{Platform match?}
+    E -->|Yes| F[Run platform extractor]
+    E -->|No| G[Return unsupported + fallback]
+    F --> H[Return media items]
 ```
-[Client (Next.js)]  <-- JSON -->  [API Routes (/api/download)]
-                                        |
-                                  [Extractors]
-                                  (yt-dlp, custom logic)
-                                        |
-                                  [Normalization]
-                                        |
-      -------------------------------------------------------
-      |                         |                           |
-[/api/file]               [/api/mux]                 [/api/transcode]
-(Direct Stream)        (Merge Video+Audio)          (Convert to MP3)
-```
 
-## Features
+1. **User submits a URL** → Client sends `POST /api/resolve` with `{ url }`.
+2. **Direct file detection** → If the URL ends in a known extension (`.mp4`, `.mp3`, `.jpg`, etc.), it's returned immediately.
+3. **Platform routing** → The hostname is matched to a platform (YouTube, Instagram, etc.).
+4. **Extractor runs** → Each platform has a native extractor that fetches public data and extracts media URLs.
+5. **Fallback** → If no direct media is found, a fallback action (open original, helper services) is returned.
 
--   **Universal Support**: Works with major platforms.
--   **Smart Processing**: Automatically merges separate video/audio streams (ffmpeg).
--   **Audio Conversion**: Converts HLS/m3u8 streams to MP3 on the fly.
--   **Metadata Preservation**: Retains original filenames, thumbnails, and author info.
--   **Privacy Focused**: Proxies all downloads to hide client IP from source.
--   **Rate Limiting**: Built-in protection against abuse.
+## 🚀 Deploy to Vercel (Free Plan)
 
-## Supported Platforms
+### One-Click Deploy
 
--   YouTube
--   TikTok (Watermark-free)
--   Instagram (Reels, Stories, Posts)
--   Facebook
--   Twitter / X
--   SoundCloud
--   Reddit
--   Pinterest
--   Imgur
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/mido-io/GetBox)
 
-## How It Works
-
-1.  **Resolve**: The user pastes a URL. The backend identifies the platform and uses a specific extractor (or `yt-dlp` fallback) to find media URLs.
-2.  **Prepare**: The client selects a format. The backend caches the target URL and headers (User-Agent, Cookies) to ensure access.
-3.  **Download**:
-    -   **Direct**: Streams raw files (e.g., images, simple MP4s).
-    -   **Mux**: Uses FFmpeg to merge high-quality video (1080p+) with separate audio tracks.
-    -   **Transcode**: Uses FFmpeg to convert streams (like SoundCloud m3u8) to standard MP3.
-
-## Installation & Development
-
-### Prerequisites
--   Node.js 18+
--   FFmpeg (installed and in system PATH)
--   Python 3 (for `yt-dlp`)
-
-### Setup
-
-1.  Clone the repository:
-    ```bash
-    git clone https://github.com/mido-io/GetBox.git
-    cd getbox
-    ```
-
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
-
-3.  Run the development server:
-    ```bash
-    npm run dev
-    ```
-
-4.  Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## Build
-
-To create a production build:
+### Manual Deploy
 
 ```bash
-npm run build
-npm start
+# 1. Clone
+git clone https://github.com/mido-io/GetBox.git
+cd GetBox
+
+# 2. Install
+npm install
+
+# 3. Deploy
+npx vercel --prod
 ```
 
+### Why Vercel Free Plan Works Great
 
-## Troubleshooting
+| Aspect | Detail |
+|---|---|
+| **Edge Functions** | The API route uses `runtime = "edge"` — runs on Vercel's edge network with ~0ms cold starts |
+| **Static Frontend** | The homepage is pre-rendered at build time (0 server cost per visit) |
+| **Bundle Size** | First Load JS: **~108 KB** (optimized) |
+| **No Database** | Zero external dependencies — no Supabase, no Redis, no paid APIs |
+| **10s Max Duration** | Edge functions configured for 10s timeout (fits free plan limits) |
+| **Security Headers** | Configured via `vercel.json` with immutable caching for static assets |
 
--   **403 Forbidden**: Usually due to missing User-Agent/Cookies. The system handles this, but some platforms rotate keys.
--   **Empty Audio**: Ensure FFmpeg is installed correctly.
--   **Rate Limit**: The API limits requests by IP. Check `lib/server/rateLimit.js` to adjust.
+> **Free plan limits**: 100 GB bandwidth/month, 500K edge function invocations/month, 10s max execution time. GetBox is designed to stay well within these limits.
+
+## 💻 Local Development
+
+```bash
+# Install dependencies
+npm install
+
+# Start dev server
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+> No environment variables are required. The app works with zero configuration.
+
+## 📋 Supported Platforms
+
+| Platform | Content Types | Method |
+|---|---|---|
+| **YouTube** | Video | Invidious → NOBS → API Maestro → Helper services fallback |
+| **Instagram** | Photos, Reels, Videos | Multi-source scraper (ddinstagram, vxinstagram + CDN detection) |
+| **TikTok** | Video, Audio, Images | TikWM API → oEmbed → Page scan |
+| **X / Twitter** | Video, Images | FxTwitter API → OG metadata fallback |
+| **Reddit** | Video, Images, Galleries | Public JSON API (galleries, videos, crossposts) |
+| **SoundCloud** | Audio, Playlists | Native client_id discovery + stream URL resolution |
+| **Facebook** | Video, Images | OG metadata + body scan |
+| **Pinterest** | Images, Videos | OG metadata + body scan |
+| **Direct URLs** | Any | `.mp4` `.mov` `.webm` `.mp3` `.m4a` `.ogg` `.wav` `.jpg` `.png` `.gif` `.webp` `.avif` |
+
+## ⚡ Performance Optimizations
+
+- **Edge Runtime**: API handler runs on Vercel Edge — deployed to 30+ regions globally
+- **Static Generation**: Homepage is pre-rendered at build time (zero SSR cost)
+- **Immutable Caching**: Static assets cached with `max-age=31536000, immutable`
+- **No External CSS**: All styles are CSS Modules — zero runtime CSS-in-JS overhead
+- **Minimal Dependencies**: Only `next`, `react`, `react-dom`, `react-icons` in production
+- **AbortController Timeouts**: All fetch requests have 5–10s timeouts to prevent hanging
+- **Sequential Fallbacks**: Extractors fail fast and try the next method without waiting
+
+## 🛡️ Security
+
+- `X-Content-Type-Options: nosniff` — prevents MIME-type sniffing
+- `X-Frame-Options: DENY` — prevents clickjacking
+- `Referrer-Policy: strict-origin-when-cross-origin` — limits referrer data
+- `poweredByHeader: false` — hides Next.js version
+- URL validation blocks `file:`, `ftp:`, `data:`, `blob:`, `javascript:` protocols
+- Input sanitization on all filenames (strips control characters, path traversal)
+- No cookies, no auth tokens, no user data stored server-side
 
 ## Contributing
 
@@ -100,3 +136,15 @@ Pull requests are welcome. Please ensure you do not break existing extractors.
 3.  Commit your changes.
 4.  Push to the branch.
 5.  Create a Pull Request.
+
+## 📄 License
+
+MIT
+
+---
+
+<div align="center">
+
+**Built with [Next.js](https://nextjs.org) • Deployed on [Vercel](https://vercel.com)**
+
+</div>
