@@ -520,7 +520,7 @@ export default function Home() {
                 <div>
                   <h3>Alternative Download Options</h3>
                   <div className={styles.helperServices} style={{ marginTop: '0.5rem' }}>
-                    <p className={styles.helperText}>If the links above don't work, try these trusted helper services:</p>
+                    <p className={styles.helperText}>If the links above don&apos;t work, try these trusted helper services:</p>
                     <div className={styles.helperButtons}>
                       {result.helpers.map((helper, index) => (
                         <button
