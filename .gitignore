@@ -15,6 +15,7 @@ jest.setup.js
 out/
 build/
 dist/
+.claude/
 
 # Misc
 .DS_Store

@@ -1,4 +1,3 @@
-<div align="center">
 
 # 📦 GetBox
 
@@ -18,6 +17,7 @@ Download videos, audio, and images from **YouTube**, **Instagram**, **TikTok**, 
 | 🌐 **Multi-Platform** | YouTube, Instagram, TikTok, X/Twitter, Reddit, Facebook, SoundCloud, Pinterest |
 | ⚡ **Edge Runtime** | API runs on Vercel Edge — sub-50ms cold starts worldwide |
 | 📱 **Mobile-First UI** | Responsive, dark-mode glassmorphism design with iOS Safari support |
+| 📲 **Installable PWA** | Users can install GetBox on their phone, tablet, or desktop for an app-like experience |
 | 🔗 **Direct Links** | Paste any `.mp4`, `.mp3`, `.jpg`, `.png`, `.webp`, `.gif` URL for instant download |
 | 🎵 **Playlist Support** | SoundCloud playlists (up to 50 tracks) |
 | 📋 **URL History** | Recent URLs saved locally in your browser |
@@ -143,8 +143,5 @@ MIT
 
 ---
 
-<div align="center">
 
 **Built with [Next.js](https://nextjs.org) • Deployed on [Vercel](https://vercel.com)**
-
-</div>

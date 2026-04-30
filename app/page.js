@@ -18,6 +18,10 @@ import {
   LuInstagram,
   LuFacebook,
   LuMessageCircle,
+  LuSmartphone,
+  LuMonitor,
+  LuShare,
+  LuApple,
 } from "./icons";
 import styles from "./page.module.css";
 
@@ -59,6 +63,131 @@ function isIosSafari() {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
   return /iP(ad|hone|od)/.test(ua) && /Safari/.test(ua) && !/CriOS|FxiOS/.test(ua);
+}
+
+function getDeviceInfo() {
+  if (typeof navigator === "undefined") return { type: "other", label: "Install App", Icon: LuArrowDownToLine };
+  const ua = navigator.userAgent;
+  if (/iPhone|iPod/.test(ua)) return { type: "ios", label: "Add to iPhone", Icon: LuApple };
+  if (/iPad/.test(ua)) return { type: "ios", label: "Add to iPad", Icon: LuApple };
+  if (/Android/.test(ua)) return { type: "android", label: "Install App", Icon: LuSmartphone };
+  if (/Windows/.test(ua)) return { type: "windows", label: "Install for Windows", Icon: LuMonitor };
+  if (/Mac/.test(ua)) return { type: "mac", label: "Add to Mac", Icon: LuApple };
+  if (/Linux/.test(ua)) return { type: "linux", label: "Install App", Icon: LuMonitor };
+  return { type: "other", label: "Install App", Icon: LuArrowDownToLine };
+}
+
+function InstallButton() {
+  const [state, setState] = useState("idle"); // idle | available | ios | installed
+  const [showModal, setShowModal] = useState(false);
+  const promptRef = useRef(null);
+  const device = useMemo(getDeviceInfo, []);
+
+  useEffect(() => {
+    if (
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true
+    ) {
+      setState("installed");
+      return;
+    }
+
+    if (device.type === "ios") {
+      setState("ios");
+      return;
+    }
+
+    function onPrompt(e) {
+      e.preventDefault();
+      promptRef.current = e;
+      setState("available");
+    }
+    function onInstalled() {
+      setState("installed");
+    }
+
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, [device.type]);
+
+  async function handleClick() {
+    if (state === "ios") {
+      setShowModal(true);
+      return;
+    }
+    if (promptRef.current) {
+      promptRef.current.prompt();
+      const { outcome } = await promptRef.current.userChoice;
+      if (outcome === "accepted") {
+        setState("installed");
+        promptRef.current = null;
+      }
+    }
+  }
+
+  if (state === "installed" || state === "idle") return null;
+
+  const { label, Icon } = device;
+
+  return (
+    <>
+      <button
+        type="button"
+        className={styles.installButton}
+        onClick={handleClick}
+        aria-label={label}
+        title={label}
+      >
+        <Icon />
+        <span>{label}</span>
+      </button>
+
+      {showModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowModal(false)} role="dialog" aria-modal="true" aria-label="Install GetBox">
+          <div className={styles.installModal} onClick={(e) => e.stopPropagation()}>
+            <button
+              className={styles.modalClose}
+              type="button"
+              onClick={() => setShowModal(false)}
+              aria-label="Close"
+            >
+              <LuX />
+            </button>
+            <div className={styles.modalIcon}>
+              <LuBox />
+            </div>
+            <h2>Install GetBox</h2>
+            <p>Add GetBox to your Home Screen for instant access — no App Store needed.</p>
+            <ol className={styles.installSteps}>
+              <li>
+                <LuShare aria-hidden="true" />
+                <span>Tap the <strong>Share</strong> button at the bottom of Safari</span>
+              </li>
+              <li>
+                <LuArrowDownToLine aria-hidden="true" />
+                <span>Scroll down and tap <strong>Add to Home Screen</strong></span>
+              </li>
+              <li>
+                <LuApple aria-hidden="true" />
+                <span>Tap <strong>Add</strong> — done!</span>
+              </li>
+            </ol>
+            <button
+              type="button"
+              className={styles.modalDone}
+              onClick={() => setShowModal(false)}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 function groupByType(items) {
@@ -184,10 +313,11 @@ export default function Home() {
   }
 
   function downloadItem(item) {
+    const filename = item.filename || filenameFromUrl(item.url);
+    const params = new URLSearchParams({ url: item.url, filename });
     const link = document.createElement("a");
-    link.href = item.url;
-    link.download = item.filename || filenameFromUrl(item.url);
-    link.rel = "noopener noreferrer";
+    link.href = `/api/download?${params}`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -233,6 +363,7 @@ export default function Home() {
 
   return (
     <main className={styles.shell}>
+      <InstallButton />
       {copied && <div className={styles.toast} role="status" aria-live="polite">✓ Copied to clipboard</div>}
 
       <section className={styles.workspace} aria-labelledby="app-title">

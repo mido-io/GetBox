@@ -1,4 +1,5 @@
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 
 const SITE_URL = "https://getbox.vercel.app";
 
@@ -145,10 +146,6 @@ export default function RootLayout({ children }) {
         {/* Web App Manifest */}
         <link rel="manifest" href="/manifest.json" />
         
-        {/* Preconnect to Google Fonts for potential font loading */}
-        <link rel="dns-prefetch" href="//fonts.googleapis.com" />
-        <link rel="dns-prefetch" href="//fonts.gstatic.com" />
-
         {/* JSON-LD Structured Data */}
         <script
           type="application/ld+json"
@@ -165,6 +162,7 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         {children}
+        <Analytics />
       </body>
     </html>
   );
